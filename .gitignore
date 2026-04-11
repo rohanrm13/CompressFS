@@ -1,0 +1,21 @@
+# Build artifacts
+build/
+*.o
+*.a
+compile_commands.json
+
+# Benchmark data and output
+bench/testdata/
+bench/RESULTS.txt
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*~
+.cache/
+.clangd/
+
+# OS
+.DS_Store
+Thumbs.db
