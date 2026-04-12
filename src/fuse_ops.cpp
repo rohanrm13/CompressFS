@@ -417,6 +417,10 @@ static int cfs_rename(const char* from, const char* to,
 
 static int cfs_chmod(const char* path, mode_t mode,
                       struct fuse_file_info* fi) {
+    if (is_stats_path(path)) {
+        return -EACCES;
+    }
+    
     auto* state = get_state();
 
     Metadata meta;
@@ -434,6 +438,10 @@ static int cfs_chmod(const char* path, mode_t mode,
 
 static int cfs_chown(const char* path, uid_t uid, gid_t gid,
                       struct fuse_file_info* fi) {
+    if (is_stats_path(path)) {
+        return -EACCES;
+    }
+
     auto* state = get_state();
 
     Metadata meta;
@@ -452,6 +460,10 @@ static int cfs_chown(const char* path, uid_t uid, gid_t gid,
 
 static int cfs_utimens(const char* path, const struct timespec tv[2],
                         struct fuse_file_info* fi) {
+    if (is_stats_path(path)) {
+        return -EACCES;
+    }
+
     auto* state = get_state();
 
     Metadata meta;
