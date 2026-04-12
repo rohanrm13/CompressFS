@@ -2,8 +2,6 @@
 
 A compressed filesystem in userspace. You mount it on an empty directory, point it at a backing directory on your real filesystem, and from then on every file you write through the mount point gets split into fixed-size blocks, compressed with LZ4 or Zstd, checksummed, and written to the backing store. Reads go the other way.
 
-I built it to work through the concrete problems that show up when you sit between an application's `read()`/`write()` and a disk. How do you avoid decompressing a whole file for a random 4 KiB read? What do you do when compression actually makes a block bigger? How do you stay consistent across a crash without writing a journal? Where does FUSE overhead actually live? It's a learning project, not something I'd put in front of real data.
-
 ---
 
 ## Architecture
