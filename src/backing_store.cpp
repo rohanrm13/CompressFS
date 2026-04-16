@@ -500,4 +500,80 @@ Error BackingStore::rename_file(std::string_view old_path,
     return Error::Ok;
 }
 
+int BackingStore::cleanup_orphaned_tmp_files() {
+    int base_fd = base_dir_fd_.get();
+
+    // Scan top-level entries (each is a file directory)
+    int dup_fd = ::dup(base_fd);
+    if (dup_fd < 0)
+        return -1;
+
+    DIR* top_dir = ::fdopendir(dup_fd);
+    if (!top_dir) {
+        ::close(dup_fd);
+        return -1;
+    }
+
+    int removed = 0;
+    struct dirent* file_ent;
+    while ((file_ent = ::readdir(top_dir)) != nullptr) {
+        if (file_ent->d_name[0] == '.' &&
+            (file_ent->d_name[1] == '\0' ||
+             (file_ent->d_name[1] == '.' && file_ent->d_name[2] == '\0')))
+            continue;
+
+        // Only process directories (each virtual file maps to a directory)
+        bool is_dir = false;
+        if (file_ent->d_type == DT_DIR) {
+            is_dir = true;
+        } else if (file_ent->d_type == DT_UNKNOWN) {
+            struct stat st;
+            if (::fstatat(base_fd, file_ent->d_name, &st, 0) == 0 &&
+                S_ISDIR(st.st_mode))
+                is_dir = true;
+        }
+        if (!is_dir)
+            continue;
+
+        // Open the file directory
+        ScopedFd file_dir_fd(::openat(base_fd, file_ent->d_name,
+                                       O_RDONLY | O_DIRECTORY | O_CLOEXEC));
+        if (!file_dir_fd.valid())
+            continue;
+
+        // Remove meta.bin.tmp if it exists
+        if (::unlinkat(file_dir_fd.get(), "meta.bin.tmp", 0) == 0)
+            ++removed;
+
+        // Scan blocks/ subdirectory for *.blk.tmp
+        ScopedFd blocks_fd(::openat(file_dir_fd.get(), "blocks",
+                                     O_RDONLY | O_DIRECTORY | O_CLOEXEC));
+        if (!blocks_fd.valid())
+            continue;
+
+        int blocks_dup = ::dup(blocks_fd.get());
+        if (blocks_dup < 0)
+            continue;
+
+        DIR* blk_dir = ::fdopendir(blocks_dup);
+        if (!blk_dir) {
+            ::close(blocks_dup);
+            continue;
+        }
+
+        struct dirent* blk_ent;
+        while ((blk_ent = ::readdir(blk_dir)) != nullptr) {
+            size_t len = std::strlen(blk_ent->d_name);
+            if (len > 4 && std::strcmp(blk_ent->d_name + len - 4, ".tmp") == 0) {
+                if (::unlinkat(blocks_fd.get(), blk_ent->d_name, 0) == 0)
+                    ++removed;
+            }
+        }
+        ::closedir(blk_dir);
+    }
+
+    ::closedir(top_dir);
+    return removed;
+}
+
 } // namespace compressfs

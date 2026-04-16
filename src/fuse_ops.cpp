@@ -610,6 +610,14 @@ int compressfs_fuse_main(int argc, char* argv[], const FsConfig& cfg) {
     }
     state->store = std::move(store);
 
+    int cleaned = state->store.cleanup_orphaned_tmp_files();
+    if (cleaned > 0) {
+        std::fprintf(stderr, "compressfs: cleaned %d orphaned .tmp file(s) from previous crash\n",
+                     cleaned);
+    } else if (cleaned < 0) {
+        std::fprintf(stderr, "compressfs: warning: failed to scan for orphaned .tmp files\n");
+    }
+
     const CodecBase* codec = get_codec(cfg.codec_id);
     if (!codec) {
         std::fprintf(stderr, "compressfs: unknown codec id %d\n",

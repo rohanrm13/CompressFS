@@ -90,6 +90,9 @@ public:
     [[nodiscard]] Error rename_file(std::string_view old_path,
                                      std::string_view new_path);
 
+    // Remove orphaned .tmp file left by crashes mid-atomic-write
+    int cleanup_orphaned_tmp_files();
+
     [[nodiscard]] bool is_open() const { return base_dir_fd_.valid(); }
 
 private:
