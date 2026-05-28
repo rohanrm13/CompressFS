@@ -51,6 +51,25 @@ add_library(compressfs_codec STATIC
 target_include_directories(compressfs_codec PUBLIC include ${LZ4_INCLUDE_DIR} ${ZSTD_INCLUDE_DIR})
 target_link_libraries(compressfs_codec PUBLIC compressfs_backing ${LZ4_LIBRARY} ${ZSTD_LIBRARY})
 
+# --- liburing dependency (io_uring engine) ---
+# Why find_path/find_library instead of pkg_check_modules: matches the FUSE3
+# and lz4/zstd handling below - avoids requiring the pkg-config binary, which
+# may be absent even when the .pc file exists.
+find_path(URING_INCLUDE_DIR liburing.h)
+find_library(URING_LIBRARY uring)
+if(NOT URING_INCLUDE_DIR OR NOT URING_LIBRARY)
+    message(FATAL_ERROR "liburing-dev not found. Install with: sudo apt install liburing-dev")
+endif()
+
+# --- io_uring engine library ---
+# Standalone for now: nothing in the FUSE path links this yet. It exists so the
+# batched-read engine can be unit-tested and benchmarked independently before
+# being wired into BlockManager::read.
+add_library(compressfs_iouring STATIC src/io_uring_engine.cpp)
+target_include_directories(compressfs_iouring PUBLIC include ${URING_INCLUDE_DIR})
+target_link_libraries(compressfs_iouring PUBLIC compressfs_backing ${URING_LIBRARY})
+target_compile_definitions(compressfs_iouring PRIVATE _GNU_SOURCE)
+
 # --- FUSE3 dependency ---
 # Why find_path/find_library instead of pkg_check_modules: avoids requiring
 # pkg-config binary to be installed. The .pc file may exist but the tool may not.
@@ -115,3 +134,7 @@ add_executable(test_stats tests/test_stats.cpp)
 target_include_directories(test_stats PRIVATE include)
 target_link_libraries(test_stats PRIVATE pthread)
 add_test(NAME stats COMMAND test_stats)
+
+add_executable(test_io_uring_engine tests/test_io_uring_engine.cpp)
+target_link_libraries(test_io_uring_engine PRIVATE compressfs_iouring)
+add_test(NAME io_uring_engine COMMAND test_io_uring_engine)
